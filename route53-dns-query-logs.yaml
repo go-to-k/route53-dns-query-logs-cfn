@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Domain"
+        Parameters:
+          - Domain
+      - Label:
+          default: "LogName"
+        Parameters:
+          - LogName
+
+Parameters:
+  Domain:
+    Type: String
+  LogName:
+    Type: String
+
+Resources:
+  Route53HostedZone:
+    Type: AWS::Route53::HostedZone
+    DependsOn: ResourcePolicyForLogs
+    Properties:
+      HostedZoneConfig:
+        Comment: !Ref Domain
+      Name: !Ref Domain
+      QueryLoggingConfig:
+        CloudWatchLogsLogGroupArn: !GetAtt DNSQueryLogGroup.Arn
+
+  DNSQueryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/route53/${LogName}"
+
+  ResourcePolicyForLogs:
+    Type: AWS::Logs::ResourcePolicy
+    Properties:
+      PolicyName: "DNSQueryLog-ToLogs-ResourcePolicy"
+      PolicyDocument: !Sub 
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "route53.amazonaws.com"
+                },
+                "Action": [
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents"
+                ],
+                "Resource": "${CloudWatchLogsLogGroupArn}"
+              }
+            ]
+          }
+        - CloudWatchLogsLogGroupArn: !GetAtt DNSQueryLogGroup.Arn
